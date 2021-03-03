@@ -19,8 +19,9 @@ package services
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/stretchr/testify/require"
 )
@@ -217,17 +218,12 @@ func TestRequestFilterConversion(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-
-		if m := tc.f.IntoMap(); !utils.StringMapsEqual(m, tc.m) {
-			t.Errorf("bad map encoding: expected %+v, got %+v", tc.m, m)
-		}
+		m := tc.f.IntoMap()
+		require.Empty(t, cmp.Diff(m, tc.m))
 		var f AccessRequestFilter
-		if err := f.FromMap(tc.m); err != nil {
-			t.Errorf("failed to parse %+v: %s", tc.m, err)
-		}
-		if !f.Equals(tc.f) {
-			t.Errorf("bad map decoding: expected %+v, got %+v", tc.f, f)
-		}
+		err := f.FromMap(tc.m)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(f, tc.f))
 	}
 	badMaps := []map[string]string{
 		{"food": "carrots"},

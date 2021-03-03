@@ -23,9 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 )
 
@@ -360,16 +359,7 @@ type CommandLabel interface {
 
 // Equals returns true if labels are equal, false otherwise
 func (c *CommandLabelV2) Equals(other CommandLabel) bool {
-	if c.GetPeriod() != other.GetPeriod() {
-		return false
-	}
-	if c.GetResult() != other.GetResult() {
-		return false
-	}
-	if !utils.StringSlicesEqual(c.GetCommand(), other.GetCommand()) {
-		return false
-	}
-	return true
+	return cmp.Equal(c, other)
 }
 
 // Clone returns non-shallow copy of the label
