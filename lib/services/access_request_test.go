@@ -38,7 +38,7 @@ func TestAccessRequestMarshaling(t *testing.T) {
 	req2, err := UnmarshalAccessRequest(marshaled)
 	require.NoError(t, err)
 
-	require.True(t, req1.Equals(req2))
+	require.True(t, req1.Equal(req2))
 }
 
 // TestPluginDataExpectations verifies the correct behavior of the `Expect` mapping.

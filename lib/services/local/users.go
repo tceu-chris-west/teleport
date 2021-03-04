@@ -273,7 +273,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id services.ExternalIdentity) (s
 	}
 	for _, u := range users {
 		for _, uid := range u.GetOIDCIdentities() {
-			if uid.Equals(&id) {
+			if uid.Equal(&id) {
 				return u, nil
 			}
 		}
@@ -290,7 +290,7 @@ func (s *IdentityService) GetUserBySAMLIdentity(id services.ExternalIdentity) (s
 	}
 	for _, u := range users {
 		for _, uid := range u.GetSAMLIdentities() {
-			if uid.Equals(&id) {
+			if uid.Equal(&id) {
 				return u, nil
 			}
 		}
@@ -306,7 +306,7 @@ func (s *IdentityService) GetUserByGithubIdentity(id services.ExternalIdentity) 
 	}
 	for _, u := range users {
 		for _, uid := range u.GetGithubIdentities() {
-			if uid.Equals(&id) {
+			if uid.Equal(&id) {
 				return u, nil
 			}
 		}

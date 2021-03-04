@@ -191,7 +191,7 @@ func CmdLabelMapsEqual(a, b map[string]CommandLabel) bool {
 		if !ok {
 			return false
 		}
-		if !val.Equals(val2) {
+		if !val.Equal(val2) {
 			return false
 		}
 	}

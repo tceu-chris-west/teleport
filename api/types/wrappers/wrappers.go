@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 )
 
@@ -87,6 +88,10 @@ func (l *Traits) Unmarshal(data []byte) error {
 // Size returns protobuf size
 func (l Traits) Size() int {
 	return l.protoType().Size()
+}
+
+func (l Traits) Equal(o Traits) bool {
+	return cmp.Equal(l, o)
 }
 
 // Strings is a list of string that can unmarshal from list of strings

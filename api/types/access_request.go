@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 )
 
@@ -70,8 +69,8 @@ type AccessRequest interface {
 	// CheckAndSetDefaults validates the access request and
 	// supplies default values where appropriate.
 	CheckAndSetDefaults() error
-	// Equals checks equality between access request values.
-	Equals(AccessRequest) bool
+	// Equal checks equality between access request values.
+	Equal(interface{}) bool
 }
 
 // NewAccessRequest assembled an AccessRequest resource.
@@ -295,11 +294,6 @@ func (r *AccessRequestV3) SetResourceID(id int64) {
 // String returns a text representation of this AccessRequest
 func (r *AccessRequestV3) String() string {
 	return fmt.Sprintf("AccessRequest(user=%v,roles=%+v)", r.Spec.User, r.Spec.Roles)
-}
-
-// Equals compares two AccessRequests
-func (r *AccessRequestV3) Equals(other AccessRequest) bool {
-	return cmp.Equal(r, other)
 }
 
 // AccessRequestUpdate encompasses the parameters of a

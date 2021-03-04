@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 )
 
@@ -352,14 +351,9 @@ type CommandLabel interface {
 	GetCommand() []string
 	// Clone returns label copy
 	Clone() CommandLabel
-	// Equals returns true if label is equal to the other one
+	// Equal returns true if label is equal to the other one
 	// false otherwise
-	Equals(CommandLabel) bool
-}
-
-// Equals returns true if labels are equal, false otherwise
-func (c *CommandLabelV2) Equals(other CommandLabel) bool {
-	return cmp.Equal(c, other)
+	Equal(interface{}) bool
 }
 
 // Clone returns non-shallow copy of the label

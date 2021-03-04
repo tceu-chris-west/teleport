@@ -8,6 +8,8 @@ import fmt "fmt"
 import math "math"
 import _ "github.com/gogo/protobuf/gogoproto"
 
+import bytes "bytes"
+
 import io "io"
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -33,7 +35,7 @@ func (m *StringValues) Reset()         { *m = StringValues{} }
 func (m *StringValues) String() string { return proto.CompactTextString(m) }
 func (*StringValues) ProtoMessage()    {}
 func (*StringValues) Descriptor() ([]byte, []int) {
-	return fileDescriptor_wrappers_d2ee18096edb2e42, []int{0}
+	return fileDescriptor_wrappers_e47ec8c02366434a, []int{0}
 }
 func (m *StringValues) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -76,7 +78,7 @@ func (m *LabelValues) Reset()         { *m = LabelValues{} }
 func (m *LabelValues) String() string { return proto.CompactTextString(m) }
 func (*LabelValues) ProtoMessage()    {}
 func (*LabelValues) Descriptor() ([]byte, []int) {
-	return fileDescriptor_wrappers_d2ee18096edb2e42, []int{1}
+	return fileDescriptor_wrappers_e47ec8c02366434a, []int{1}
 }
 func (m *LabelValues) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -109,6 +111,72 @@ func init() {
 	proto.RegisterType((*StringValues)(nil), "wrappers.StringValues")
 	proto.RegisterType((*LabelValues)(nil), "wrappers.LabelValues")
 	proto.RegisterMapType((map[string]StringValues)(nil), "wrappers.LabelValues.ValuesEntry")
+}
+func (this *StringValues) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*StringValues)
+	if !ok {
+		that2, ok := that.(StringValues)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if len(this.Values) != len(that1.Values) {
+		return false
+	}
+	for i := range this.Values {
+		if this.Values[i] != that1.Values[i] {
+			return false
+		}
+	}
+	if !bytes.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
+		return false
+	}
+	return true
+}
+func (this *LabelValues) Equal(that interface{}) bool {
+	if that == nil {
+		return this == nil
+	}
+
+	that1, ok := that.(*LabelValues)
+	if !ok {
+		that2, ok := that.(LabelValues)
+		if ok {
+			that1 = &that2
+		} else {
+			return false
+		}
+	}
+	if that1 == nil {
+		return this == nil
+	} else if this == nil {
+		return false
+	}
+	if len(this.Values) != len(that1.Values) {
+		return false
+	}
+	for i := range this.Values {
+		a := this.Values[i]
+		b := that1.Values[i]
+		if !(&a).Equal(&b) {
+			return false
+		}
+	}
+	if !bytes.Equal(this.XXX_unrecognized, that1.XXX_unrecognized) {
+		return false
+	}
+	return true
 }
 func (m *StringValues) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
@@ -607,10 +675,10 @@ var (
 	ErrIntOverflowWrappers   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("wrappers.proto", fileDescriptor_wrappers_d2ee18096edb2e42) }
+func init() { proto.RegisterFile("wrappers.proto", fileDescriptor_wrappers_e47ec8c02366434a) }
 
-var fileDescriptor_wrappers_d2ee18096edb2e42 = []byte{
-	// 207 bytes of a gzipped FileDescriptorProto
+var fileDescriptor_wrappers_e47ec8c02366434a = []byte{
+	// 211 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x2b, 0x2f, 0x4a, 0x2c,
 	0x28, 0x48, 0x2d, 0x2a, 0xd6, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0xe2, 0x80, 0xf1, 0xa5, 0x44,
 	0xd2, 0xf3, 0xd3, 0xf3, 0xc1, 0x82, 0xfa, 0x20, 0x16, 0x44, 0x5e, 0x49, 0x8d, 0x8b, 0x27, 0xb8,
@@ -621,7 +689,8 @@ var fileDescriptor_wrappers_d2ee18096edb2e42 = []byte{
 	0x9e, 0x3c, 0x5b, 0x0e, 0x48, 0x41, 0x31, 0xcc, 0x68, 0xa9, 0x40, 0x2e, 0x6e, 0x24, 0x65, 0x42,
 	0x02, 0x5c, 0xcc, 0xd9, 0xa9, 0x95, 0x12, 0x8c, 0x0a, 0x8c, 0x1a, 0x9c, 0x41, 0x20, 0xa6, 0x90,
 	0x0e, 0x17, 0x6b, 0x19, 0x48, 0x81, 0x04, 0x93, 0x02, 0xa3, 0x06, 0xb7, 0x91, 0x18, 0xc2, 0x2a,
-	0x64, 0xa7, 0x07, 0x41, 0x14, 0x59, 0x31, 0x59, 0x30, 0x3a, 0x09, 0x9c, 0x78, 0x28, 0xc7, 0x70,
-	0xe2, 0x91, 0x1c, 0xe3, 0x85, 0x47, 0x72, 0x8c, 0x0f, 0x1e, 0xc9, 0x31, 0x26, 0xb1, 0x81, 0xbd,
-	0x6b, 0x0c, 0x08, 0x00, 0x00, 0xff, 0xff, 0xe2, 0x2f, 0x63, 0x05, 0x20, 0x01, 0x00, 0x00,
+	0x64, 0xa7, 0x07, 0x41, 0x14, 0x59, 0x31, 0x59, 0x30, 0x3a, 0x89, 0x9c, 0x78, 0x28, 0xc7, 0xb0,
+	0xe2, 0x91, 0x1c, 0xe3, 0x89, 0x47, 0x72, 0x8c, 0x17, 0x1e, 0xc9, 0x31, 0x3e, 0x78, 0x24, 0xc7,
+	0x98, 0xc4, 0x06, 0xf6, 0xb2, 0x31, 0x20, 0x00, 0x00, 0xff, 0xff, 0xb9, 0x0b, 0x01, 0x54, 0x24,
+	0x01, 0x00, 0x00,
 }

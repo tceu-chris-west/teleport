@@ -6,6 +6,7 @@ import "gogoproto/gogo.proto";
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
+option (gogoproto.equal_all) = true;
 
 // StringValues is a list of strings.
 message StringValues { repeated string Values = 1; }

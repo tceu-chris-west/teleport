@@ -21,8 +21,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ValidateUser validates the User and sets default values
@@ -48,7 +49,7 @@ func UsersEquals(u User, other User) bool {
 		return false
 	}
 	for i := range u.GetOIDCIdentities() {
-		if !u.GetOIDCIdentities()[i].Equals(&otherIdentities[i]) {
+		if !u.GetOIDCIdentities()[i].Equal(&otherIdentities[i]) {
 			return false
 		}
 	}
@@ -57,7 +58,7 @@ func UsersEquals(u User, other User) bool {
 		return false
 	}
 	for i := range u.GetSAMLIdentities() {
-		if !u.GetSAMLIdentities()[i].Equals(&otherSAMLIdentities[i]) {
+		if !u.GetSAMLIdentities()[i].Equal(&otherSAMLIdentities[i]) {
 			return false
 		}
 	}
@@ -66,7 +67,7 @@ func UsersEquals(u User, other User) bool {
 		return false
 	}
 	for i := range u.GetGithubIdentities() {
-		if !u.GetGithubIdentities()[i].Equals(&otherGithubIdentities[i]) {
+		if !u.GetGithubIdentities()[i].Equal(&otherGithubIdentities[i]) {
 			return false
 		}
 	}
