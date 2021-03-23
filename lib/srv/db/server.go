@@ -38,6 +38,7 @@ import (
 	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/redshift"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -67,6 +68,8 @@ type Config struct {
 	Servers types.DatabaseServers
 	// AWSCredentials are credentials to AWS API.
 	AWSCredentials *credentials.Credentials
+	//
+	Redshift *redshift.Redshift
 	// GCPIAM is the GCP IAM client.
 	GCPIAM *gcpcredentials.IamCredentialsClient
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
@@ -112,6 +115,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		c.AWSCredentials = session.Config.Credentials
+		//c.Redshift = redshift.New(session)
 	}
 	// Only initialize GCP IAM client if this service is proxying any Cloud SQL databases.
 	if c.GCPIAM == nil && c.Servers.HasGCP() {
@@ -374,6 +378,7 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 	auth, err := common.NewAuth(common.AuthConfig{
 		AuthClient:     s.cfg.AuthClient,
 		AWSCredentials: s.cfg.AWSCredentials,
+		Redshift:       s.cfg.Redshift,
 		GCPIAM:         s.cfg.GCPIAM,
 		RDSCACerts:     s.rdsCACerts,
 		Clock:          s.cfg.Clock,

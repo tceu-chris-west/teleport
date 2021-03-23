@@ -30,8 +30,11 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
+	"github.com/aws/aws-sdk-go/service/redshift"
 
 	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
 	gcpcredentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
@@ -48,6 +51,8 @@ type AuthConfig struct {
 	// AWSCredentials are the AWS credentials used to generate RDS auth tokens.
 	// May be empty when not proxying any RDS databases.
 	AWSCredentials *credentials.Credentials
+	//
+	Redshift *redshift.Redshift
 	// GCPIAM is the GCP IAM client used to generate GCP auth tokens.
 	// May be empty when not proxying any Cloud SQL databases.
 	GCPIAM *gcpcredentials.IamCredentialsClient
@@ -101,6 +106,36 @@ func (a *Auth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
 		sessionCtx.Server.GetAWS().Region,
 		sessionCtx.DatabaseUser,
 		a.cfg.AWSCredentials)
+}
+
+// GetRedshiftAuthToken returns authorization token that will be used as a
+// password when connecting to Redshift databases.
+func (a *Auth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, error) {
+	// if a.cfg.Redshift == nil {
+	// 	return "", trace.BadParameter("AWS Redshift client is not initialized")
+	// }
+	a.cfg.Log.Debugf("Generating Redshift auth token for %s.", sessionCtx)
+	session, err := awssession.NewSessionWithOptions(awssession.Options{
+		SharedConfigState: awssession.SharedConfigEnable,
+		Config: aws.Config{
+			Region: aws.String(sessionCtx.Server.GetAWS().Region),
+		},
+	})
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	resp, err := redshift.New(session).GetClusterCredentials(&redshift.GetClusterCredentialsInput{
+		AutoCreate:        aws.Bool(false),
+		ClusterIdentifier: aws.String("redshift-cluster-1"),
+		DbGroups:          []*string{},
+		DbName:            aws.String(sessionCtx.DatabaseName),
+		DbUser:            aws.String(sessionCtx.DatabaseUser),
+	})
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	a.cfg.Log.Debugf("==== REDSHIFT CREDS: %v", resp)
+	return *resp.DbUser, *resp.DbPassword, nil
 }
 
 // GetCloudSQLAuthToken returns authorization token that will be used as a

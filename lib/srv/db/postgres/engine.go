@@ -348,6 +348,11 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.DatabaseTypeRedshift:
+		config.User, config.Password, err = e.Auth.GetRedshiftAuthToken(sessionCtx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case types.DatabaseTypeCloudSQL:
 		config.Password, err = e.Auth.GetCloudSQLAuthToken(ctx, sessionCtx)
 		if err != nil {

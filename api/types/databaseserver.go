@@ -72,6 +72,8 @@ type DatabaseServer interface {
 	GetType() string
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
+	// IsRedshift returns true if this is a Redshift database.
+	IsRedshift() bool
 	// IsCloudSQL returns true if this is a Cloud SQL database.
 	IsCloudSQL() bool
 	// CheckAndSetDefaults checks and set default values for any missing fields.
@@ -254,6 +256,11 @@ func (s *DatabaseServerV3) IsRDS() bool {
 	return s.GetType() == DatabaseTypeRDS
 }
 
+// IsRedshift returns true if this is a Redshift database instance.
+func (s *DatabaseServerV3) IsRedshift() bool {
+	return s.GetType() == DatabaseTypeRedshift
+}
+
 // IsCloudSQL returns true if this database is a Cloud SQL instance.
 func (s *DatabaseServerV3) IsCloudSQL() bool {
 	return s.GetType() == DatabaseTypeCloudSQL
@@ -261,6 +268,10 @@ func (s *DatabaseServerV3) IsCloudSQL() bool {
 
 // GetType returns the database type, self-hosted or AWS RDS.
 func (s *DatabaseServerV3) GetType() string {
+	// TODO(r0mant): Fix this.
+	if s.GetName() == "redshift" {
+		return DatabaseTypeRedshift
+	}
 	if s.Spec.AWS.Region != "" {
 		return DatabaseTypeRDS
 	}
@@ -314,6 +325,8 @@ const (
 	DatabaseTypeSelfHosted = "self-hosted"
 	// DatabaseTypeRDS is AWS-hosted RDS or Aurora database.
 	DatabaseTypeRDS = "rds"
+	// DatabaseTypeRedshift is AWS Redshift database.
+	DatabaseTypeRedshift = "redshift"
 	// DatabaseTypeCloudSQL is GCP-hosted Cloud SQL database.
 	DatabaseTypeCloudSQL = "gcp"
 )
@@ -337,6 +350,16 @@ type DatabaseServers []DatabaseServer
 func (s DatabaseServers) HasRDS() bool {
 	for _, d := range s {
 		if d.IsRDS() {
+			return true
+		}
+	}
+	return false
+}
+
+// HasRedshift returns true if an AWS Redshift database is present among this list.
+func (s DatabaseServers) HasRedshift() bool {
+	for _, d := range s {
+		if d.IsRedshift() {
 			return true
 		}
 	}
