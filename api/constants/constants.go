@@ -91,6 +91,10 @@ const (
 
 	// DarwinOS is the GOOS constant for Apple macOS/darwin.
 	DarwinOS = "darwin"
+
+	// UseOfClosedNetworkConnection is a special string some parts of
+	// go standard lib are using that is the only way to identify some errors
+	UseOfClosedNetworkConnection = "use of closed network connection"
 )
 
 // SecondFactorType is the type of 2FA authentication.
