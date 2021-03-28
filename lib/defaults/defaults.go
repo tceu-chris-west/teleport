@@ -63,6 +63,9 @@ const (
 	// MySQLListenPort is the default listen port for MySQL proxy.
 	MySQLListenPort = 3036
 
+	// MongoDBListenPort is the default listen port for MongoDB proxy.
+	MongoDBListenPort = 3037
+
 	// Default DB to use for persisting state. Another options is "etcd"
 	BackendType = "bolt"
 
@@ -462,12 +465,15 @@ const (
 	ProtocolPostgres = "postgres"
 	// ProtocolMySQL is the MySQL database protocol.
 	ProtocolMySQL = "mysql"
+	// ProtocolMongoDB is the MongoDB database protocol.
+	ProtocolMongoDB = "mongodb"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
 var DatabaseProtocols = []string{
 	ProtocolPostgres,
 	ProtocolMySQL,
+	ProtocolMongoDB,
 }
 
 const (

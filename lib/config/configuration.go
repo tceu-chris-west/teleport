@@ -567,6 +567,13 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.MySQLAddr = *addr
 	}
+	if fc.Proxy.MongoDBAddr != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.MongoDBAddr, int(defaults.MongoDBListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Proxy.MongoDBAddr = *addr
+	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.

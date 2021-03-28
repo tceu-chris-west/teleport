@@ -1216,6 +1216,9 @@ func formatConnectCommand(cluster string, active tlsca.RouteToDatabase) string {
 			return fmt.Sprintf("mysql --defaults-group-suffix=_%v --user=<user>", service)
 		}
 		return fmt.Sprintf("mysql --defaults-group-suffix=_%v --user=<user> --database=<database>", service)
+	case defaults.ProtocolMongoDB:
+		// TODO what should this really be?
+		return fmt.Sprintf(`mongo "%v"`, service)
 	}
 	return ""
 }

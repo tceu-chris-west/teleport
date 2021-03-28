@@ -2212,6 +2212,7 @@ type proxyListeners struct {
 	kube          net.Listener
 	db            net.Listener
 	mysql         net.Listener
+	mongodb       net.Listener
 }
 
 func (l *proxyListeners) Close() {
@@ -2232,6 +2233,9 @@ func (l *proxyListeners) Close() {
 	}
 	if l.mysql != nil {
 		l.mysql.Close()
+	}
+	if l.mongodb != nil {
+		l.mongodb.Close()
 	}
 }
 
@@ -2263,6 +2267,15 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.mysql = listener
+	}
+
+	if !cfg.Proxy.MongoDBAddr.IsEmpty() {
+		process.log.Debugf("Setup Proxy: MongoDB proxy address: %v.", cfg.Proxy.MongoDBAddr.Addr)
+		listener, err := process.importOrCreateListener(listenerProxyMongoDB, cfg.Proxy.MongoDBAddr.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		listeners.mongodb = listener
 	}
 
 	switch {
@@ -2513,6 +2526,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if !cfg.Proxy.MySQLAddr.IsEmpty() {
 			proxySettings.DB.MySQLListenAddr = cfg.Proxy.MySQLAddr.String()
 		}
+		if !cfg.Proxy.MongoDBAddr.IsEmpty() {
+			proxySettings.DB.MongoDBListenAddr = cfg.Proxy.MongoDBAddr.String()
+		}
 		var fs http.FileSystem
 		if !process.Config.Proxy.DisableWebInterface {
 			fs, err = newHTTPFileSystem()
@@ -2736,7 +2752,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// the database clients (such as psql or mysql), authenticating them, and
 	// then routing them to a respective database server over the reverse tunnel
 	// framework.
-	if (listeners.db != nil || listeners.mysql != nil) && !process.Config.Proxy.DisableReverseTunnel {
+	if (listeners.db != nil || listeners.mysql != nil || listeners.mongodb != nil) && !process.Config.Proxy.DisableReverseTunnel {
 		authorizer, err := auth.NewAuthorizer(clusterName, conn.Client, conn.Client, conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2775,6 +2791,16 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return nil
 			})
 		}
+		if listeners.mongodb != nil {
+			process.RegisterCriticalFunc("proxy.mongodb", func() error {
+				log.Infof("Starting MongoDB proxy server on %v.", cfg.Proxy.MongoDBAddr.Addr)
+				if err := dbProxyServer.ServeMongoDB(listeners.mongodb); err != nil {
+					log.WithError(err).Warn("MongoDB proxy server exited with error.")
+				}
+				return nil
+			})
+		}
+
 	}
 
 	// execute this when process is asked to exit:

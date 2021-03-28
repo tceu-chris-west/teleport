@@ -29,6 +29,7 @@ import (
 	"os"
 
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/db/mongodb"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
 	"github.com/gravitational/teleport/lib/client/db/postgres"
 	"github.com/gravitational/teleport/lib/client/db/profile"
@@ -49,6 +50,10 @@ func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile clie
 	host, port := tc.WebProxyHostPort()
 	if db.Protocol == defaults.ProtocolMySQL {
 		host, port = tc.MySQLProxyHostPort()
+	}
+	// TODO can we mux mongodb connections into the web proxy?
+	if db.Protocol == defaults.ProtocolMongoDB {
+		host, port = tc.MongoDBProxyHostPort()
 	}
 	connectProfile := profile.ConnectProfile{
 		Name:       profileName(tc.SiteName, db.ServiceName),
@@ -73,6 +78,8 @@ func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile clie
 		return postgres.Message.Execute(os.Stdout, connectProfile)
 	case defaults.ProtocolMySQL:
 		return mysql.Message.Execute(os.Stdout, connectProfile)
+	case defaults.ProtocolMongoDB:
+		return mongodb.Message.Execute(os.Stdout, connectProfile)
 	}
 	return nil
 }
@@ -110,6 +117,8 @@ func load(db tlsca.RouteToDatabase) (profile.ConnectProfileFile, error) {
 		return postgres.Load()
 	case defaults.ProtocolMySQL:
 		return mysql.Load()
+	case defaults.ProtocolMongoDB:
+		return mongodb.Load()
 	}
 	return nil, trace.BadParameter("unsupported database protocol %q",
 		db.Protocol)

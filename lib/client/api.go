@@ -183,6 +183,9 @@ type Config struct {
 	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
 	MySQLProxyAddr string
 
+	// MongoDBProxyAddr is the host:port the MongoDB proxy can be accessed at.
+	MongoDBProxyAddr string
+
 	// KeyTTL is a time to live for the temporary SSH keypair to remain valid:
 	KeyTTL time.Duration
 
@@ -722,6 +725,7 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 	c.WebProxyAddr = cp.WebProxyAddr
 	c.SSHProxyAddr = cp.SSHProxyAddr
 	c.MySQLProxyAddr = cp.MySQLProxyAddr
+	c.MongoDBProxyAddr = cp.MongoDBProxyAddr
 
 	c.LocalForwardPorts, err = ParsePortForwardSpec(cp.ForwardedPorts)
 	if err != nil {
@@ -751,6 +755,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	cp.SSHProxyAddr = c.SSHProxyAddr
 	cp.KubeProxyAddr = c.KubeProxyAddr
 	cp.MySQLProxyAddr = c.MySQLProxyAddr
+	cp.MongoDBProxyAddr = c.MongoDBProxyAddr
 	cp.ForwardedPorts = c.LocalForwardPorts.String()
 	cp.SiteName = c.SiteName
 
@@ -862,6 +867,18 @@ func (c *Config) MySQLProxyHostPort() (string, int) {
 	}
 	webProxyHost, _ := c.WebProxyHostPort()
 	return webProxyHost, defaults.MySQLListenPort
+}
+
+// MongoDBProxyHostPort returns the host and port of MySQL proxy.
+func (c *Config) MongoDBProxyHostPort() (string, int) {
+	if c.MongoDBProxyAddr != "" {
+		addr, err := utils.ParseAddr(c.MongoDBProxyAddr)
+		if err == nil {
+			return addr.Host(), addr.Port(defaults.MongoDBListenPort)
+		}
+	}
+	webProxyHost, _ := c.WebProxyHostPort()
+	return webProxyHost, defaults.MongoDBListenPort
 }
 
 // ProxyHost returns the hostname of the proxy server (without any port numbers)
@@ -2283,6 +2300,18 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 		}
 		webProxyHost, _ := tc.WebProxyHostPort()
 		tc.MySQLProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(addr.Port(defaults.MySQLListenPort)))
+	}
+
+	// Read MongoDB proxy settings if enabled on the server.
+	if proxySettings.DB.MongoDBListenAddr != "" {
+		addr, err := utils.ParseAddr(proxySettings.DB.MongoDBListenAddr)
+		if err != nil {
+			return trace.BadParameter(
+				"failed to parse value received from the server: %q, contact your administrator for help",
+				proxySettings.DB.MongoDBListenAddr)
+		}
+		webProxyHost, _ := tc.WebProxyHostPort()
+		tc.MongoDBProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(addr.Port(defaults.MongoDBListenPort)))
 	}
 
 	return nil

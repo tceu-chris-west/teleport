@@ -39,6 +39,7 @@ var (
 	listenerProxyWeb          = listenerType(teleport.Component(teleport.ComponentProxy, "web"))
 	listenerProxyTunnel       = listenerType(teleport.Component(teleport.ComponentProxy, "tunnel"))
 	listenerProxyMySQL        = listenerType(teleport.Component(teleport.ComponentProxy, "mysql"))
+	listenerProxyMongoDB      = listenerType(teleport.Component(teleport.ComponentProxy, "mongodb"))
 )
 
 // AuthSSHAddr returns auth server SSH endpoint, if configured and started.

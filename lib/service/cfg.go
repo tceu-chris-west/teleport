@@ -344,6 +344,9 @@ type ProxyConfig struct {
 	// MySQLAddr is address of MySQL proxy.
 	MySQLAddr utils.NetAddr
 
+	// MongoDBAddr is address of MongoDB proxy.
+	MongoDBAddr utils.NetAddr
+
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises

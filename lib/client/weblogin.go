@@ -261,6 +261,8 @@ type SSHProxySettings struct {
 type DBProxySettings struct {
 	// MySQLListenAddr is MySQL proxy listen address.
 	MySQLListenAddr string `json:"mysql_listen_addr,omitempty"`
+	// MongoDBListenAddr is MongoDB proxy listen address.
+	MongoDBListenAddr string `json:"mongodb_listen_addr,omitempty"`
 }
 
 // PingResponse contains the form of authentication the auth server supports.

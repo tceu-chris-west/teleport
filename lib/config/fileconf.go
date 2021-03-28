@@ -185,6 +185,7 @@ var (
 		"acme":                    true,
 		"email":                   false,
 		"mysql_listen_addr":       false,
+		"mongodb_listen_addr":     false,
 	}
 )
 
@@ -1009,6 +1010,9 @@ type Proxy struct {
 
 	// MySQLAddr is MySQL proxy listen address.
 	MySQLAddr string `yaml:"mysql_listen_addr,omitempty"`
+
+	// MongoDBAddr is MongoDB proxy listen address.
+	MongoDBAddr string `yaml:"mongodb_listen_addr,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
