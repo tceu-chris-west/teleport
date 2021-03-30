@@ -58,10 +58,10 @@ spec:
   # will be given the Teleport `admin` role.
   - {name: "groups", value: "okta-admin", roles: ["admin"]}
   entity_descriptor: |
-    <?xml !!! Make sure to shift all lines in XML descriptor 
+    <?xml !!! Make sure to shift all lines in XML descriptor
     with 4 spaces, otherwise things will not work
 ```
-    
+
 Members of the role `admin` have a property `kubernetes_groups` that assigns them to [Kubernetes groups](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#referring-to-subjects)
 
 ```yaml
@@ -179,7 +179,7 @@ spec:
   attributes_to_roles:
   - {name: "groups", value: "*", roles: ["group-member"]}
   entity_descriptor: |
-    <?xml !!! Make sure to indent all lines in XML descriptor 
+    <?xml !!! Make sure to indent all lines in XML descriptor
     with 4 spaces, otherwise things will not work
 ```
 </TabItem>
