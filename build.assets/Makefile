@@ -322,4 +322,4 @@ docsbox:
 test-docs: DOCS_VERSION := $(shell grep -E ^VERSION $(MAKEFILE_ROOT_DIR)/Makefile | cut -d= -f2 | cut -d. -f1-2)
 test-docs: docsbox
 	docker run -i $(NOROOT) -v $$(pwd)/..:/src/content/$(DOCS_VERSION) $(DOCSBOX) \
-		/bin/sh -c "yarn markdown-lint-external-links"
+		/bin/sh -c "yarn markdown-lint-external-links --frail"
