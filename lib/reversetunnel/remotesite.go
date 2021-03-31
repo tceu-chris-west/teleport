@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
@@ -468,14 +469,19 @@ func (s *remoteSite) updateCertAuthorities() error {
 
 func (s *remoteSite) periodicUpdateCertAuthorities() {
 	s.Debugf("Ticking with period %v", s.srv.PollingPeriod)
-	ticker := time.NewTicker(s.srv.PollingPeriod)
-	defer ticker.Stop()
+
+	interval := utils.NewInterval(utils.IntervalConfig{
+		Duration:      s.srv.PollingPeriod,
+		FirstDuration: utils.DefaultJitter(s.srv.PollingPeriod),
+		Jitter:        utils.NewSmallJitter(),
+	})
+	defer interval.Stop()
 	for {
 		select {
 		case <-s.ctx.Done():
 			s.Debugf("Context is closing.")
 			return
-		case <-ticker.C:
+		case <-interval.Next():
 			err := s.updateCertAuthorities()
 			if err != nil {
 				switch {

@@ -433,16 +433,21 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 		return nil
 	}
 
-	retryTicker := time.NewTicker(defaults.HighResPollingPeriod)
-	defer retryTicker.Stop()
+	interval := utils.NewInterval(utils.IntervalConfig{
+		Duration:      defaults.HighResPollingPeriod,
+		FirstDuration: utils.DefaultJitter(defaults.HighResPollingPeriod),
+		Jitter:        utils.NewSmallJitter(),
+	})
+	defer interval.Stop()
+
 	for {
 		err := process.syncRotationStateCycle()
 		if err == nil {
 			return nil
 		}
-		process.log.Warningf("Sync rotation state cycle failed: %v, going to retry after %v.", err, defaults.HighResPollingPeriod)
+		process.log.Warningf("Sync rotation state cycle failed: %v, going to retry after ~%v.", err, defaults.HighResPollingPeriod)
 		select {
-		case <-retryTicker.C:
+		case <-interval.Next():
 		case <-process.ExitContext().Done():
 			return nil
 		}
@@ -481,8 +486,12 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 	}
 	defer watcher.Close()
 
-	t := time.NewTicker(process.Config.PollingPeriod)
-	defer t.Stop()
+	interval := utils.NewInterval(utils.IntervalConfig{
+		Duration:      process.Config.PollingPeriod,
+		FirstDuration: utils.DefaultJitter(process.Config.PollingPeriod),
+		Jitter:        utils.NewSmallJitter(),
+	})
+	defer interval.Stop()
 	for {
 		select {
 		case event := <-watcher.Events():
@@ -511,7 +520,7 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 			}
 		case <-watcher.Done():
 			return trace.ConnectionProblem(watcher.Error(), "watcher has disconnected")
-		case <-t.C:
+		case <-interval.Next():
 			status, err := process.syncRotationStateAndBroadcast(conn)
 			if err != nil {
 				return trace.Wrap(err)
