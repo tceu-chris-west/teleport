@@ -36,10 +36,11 @@ type Interval struct {
 	done      chan struct{}
 }
 
+// IntervalConfig configures an interval.  The only required parameter is
+// the Duration field which *must* be a positive duration.
 type IntervalConfig struct {
 	// Duration is the duration on which the interval "ticks" (if a jitter is
-	// applied, this represents the upper bound of the range).  This is the only
-	// required parameter.
+	// applied, this represents the upper bound of the range).
 	Duration time.Duration
 
 	// FirstDuration is an optional special duration to be used for the first
