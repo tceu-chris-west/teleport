@@ -20,9 +20,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
 	"github.com/stretchr/testify/require"
@@ -34,15 +37,12 @@ func TestLoadTLS(t *testing.T) {
 
 	// Load expected tls.Config.
 	expectedTLSConfig := getExpectedTLSConfig(t)
-
 	// Load TLSConfigCreds.
 	creds := LoadTLS(expectedTLSConfig)
-
 	// Build tls.Config and compare to expected tls.Config.
 	tlsConfig, err := creds.TLSConfig()
 	require.NoError(t, err)
-	require.Equal(t, expectedTLSConfig.Certificates, tlsConfig.Certificates)
-	require.Equal(t, expectedTLSConfig.RootCAs.Subjects(), tlsConfig.RootCAs.Subjects())
+	requireEqualTLSConfig(t, expectedTLSConfig, tlsConfig)
 
 	// Load invalid tls.Config.
 	invalidTLSCreds := LoadTLS(nil)
@@ -64,11 +64,11 @@ func TestLoadIdentityFile(t *testing.T) {
 	idFile := &IdentityFile{
 		PrivateKey: keyPEM,
 		Certs: Certs{
-			TLS: certPEM,
+			TLS: tlsCert,
 			SSH: sshCert,
 		},
 		CACerts: CACerts{
-			TLS: [][]byte{caCertPEM},
+			TLS: [][]byte{tlsCACert},
 			SSH: [][]byte{sshCACert},
 		},
 	}
@@ -77,17 +77,15 @@ func TestLoadIdentityFile(t *testing.T) {
 
 	// Load identity file from disk.
 	creds := LoadIdentityFile(path)
-
 	// Build tls.Config and compare to expected tls.Config.
 	tlsConfig, err := creds.TLSConfig()
 	require.NoError(t, err)
-	require.Equal(t, expectedTLSConfig.Certificates, tlsConfig.Certificates)
-	require.Equal(t, expectedTLSConfig.RootCAs.Subjects(), tlsConfig.RootCAs.Subjects())
+	requireEqualTLSConfig(t, expectedTLSConfig, tlsConfig)
 
 	// Build ssh.ClientConfig and compare to expected ssh.ClientConfig.
 	sshConfig, err := creds.SSHClientConfig()
 	require.NoError(t, err)
-	require.Equal(t, expectedSSHConfig.User, sshConfig.User)
+	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
 
 	// Load invalid identity.
 	creds = LoadIdentityFile("invalid_path")
@@ -106,21 +104,19 @@ func TestLoadKeyPair(t *testing.T) {
 	// Write key pair and CAs files from bytes.
 	path := t.TempDir() + "username"
 	certPath, keyPath, caPath := path+".crt", path+".key", path+".cas"
-	err := ioutil.WriteFile(certPath, certPEM, 0600)
+	err := ioutil.WriteFile(certPath, tlsCert, 0600)
 	require.NoError(t, err)
 	err = ioutil.WriteFile(keyPath, keyPEM, 0600)
 	require.NoError(t, err)
-	err = ioutil.WriteFile(caPath, caCertPEM, 0600)
+	err = ioutil.WriteFile(caPath, tlsCACert, 0600)
 	require.NoError(t, err)
 
 	// Load key pair from disk.
 	creds := LoadKeyPair(certPath, keyPath, caPath)
-
 	// Build tls.Config and compare to expected tls.Config.
 	tlsConfig, err := creds.TLSConfig()
 	require.NoError(t, err)
-	require.Equal(t, expectedTLSConfig.Certificates, tlsConfig.Certificates)
-	require.Equal(t, expectedTLSConfig.RootCAs.Subjects(), tlsConfig.RootCAs.Subjects())
+	requireEqualTLSConfig(t, expectedTLSConfig, tlsConfig)
 
 	// Load invalid keypairs.
 	invalidIdentityCreds := LoadKeyPair("invalid_path", "invalid_path", "invalid_path")
@@ -128,12 +124,64 @@ func TestLoadKeyPair(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestLoadProfile(t *testing.T) {
+	t.Parallel()
+
+	// Load expected tls.Config and ssh.ClientConfig.
+	expectedTLSConfig := getExpectedTLSConfig(t)
+	expectedSSHConfig := getExpectedSSHConfig(t)
+
+	// Write identity file to disk.
+	dir := t.TempDir()
+	name := "proxy.example.com"
+	p := &Profile{
+		WebProxyAddr: "proxy.example.com:3080",
+		SiteName:     "example.com",
+		Username:     "testUser",
+		Dir:          dir,
+	}
+
+	// Save profile and keys to disk.
+	require.NoError(t, p.SaveToDir(dir, true))
+	require.NoError(t, os.MkdirAll(p.keyDir(), 0700))
+	require.NoError(t, os.MkdirAll(p.userKeyDir(), 0700))
+	require.NoError(t, os.MkdirAll(p.sshDir(), 0700))
+	require.NoError(t, ioutil.WriteFile(p.keyPath(), keyPEM, 0600))
+	require.NoError(t, ioutil.WriteFile(p.tlsCertPath(), tlsCert, 0600))
+	require.NoError(t, ioutil.WriteFile(p.tlsCasPath(), tlsCACert, 0600))
+	require.NoError(t, ioutil.WriteFile(p.sshCertPath(), sshCert, 0600))
+	require.NoError(t, ioutil.WriteFile(p.sshCasPath(), sshCACert, 0600))
+
+	// Load profile from disk.
+	creds := LoadProfile(dir, name)
+	// Build tls.Config and compare to expected tls.Config.
+	tlsConfig, err := creds.TLSConfig()
+	require.NoError(t, err)
+	requireEqualTLSConfig(t, expectedTLSConfig, tlsConfig)
+	// Build ssh.ClientConfig and compare to expected ssh.ClientConfig.
+	sshConfig, err := creds.SSHClientConfig()
+	require.NoError(t, err)
+	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
+	// Build Dialer
+	_, err = creds.Dialer(Config{})
+	require.NoError(t, err)
+
+	// Load invalid profile.
+	creds = LoadProfile("invalid_dir", "invalid_name")
+	_, err = creds.TLSConfig()
+	require.Error(t, err)
+	_, err = creds.SSHClientConfig()
+	require.Error(t, err)
+	_, err = creds.Dialer(Config{})
+	require.Error(t, err)
+}
+
 func getExpectedTLSConfig(t *testing.T) *tls.Config {
-	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	cert, err := tls.X509KeyPair(tlsCert, keyPEM)
 	require.NoError(t, err)
 
 	pool := x509.NewCertPool()
-	require.True(t, pool.AppendCertsFromPEM(caCertPEM))
+	require.True(t, pool.AppendCertsFromPEM(tlsCACert))
 
 	return configure(&tls.Config{
 		Certificates: []tls.Certificate{cert},
@@ -142,14 +190,27 @@ func getExpectedTLSConfig(t *testing.T) *tls.Config {
 }
 
 func getExpectedSSHConfig(t *testing.T) *ssh.ClientConfig {
-	config, err := sshutils.SSHClientConfig(sshCert, keyPEM, [][]byte{sshCACert})
+	config, err := sshutils.ProxyClientSSHConfig(sshCert, keyPEM, [][]byte{sshCACert})
 	require.NoError(t, err)
 
 	return config
 }
 
+func requireEqualTLSConfig(t *testing.T, expected *tls.Config, actual *tls.Config) {
+	require.Empty(t, cmp.Diff(expected, actual,
+		cmpopts.IgnoreFields(tls.Config{}, "GetClientCertificate"),
+		cmpopts.IgnoreUnexported(tls.Config{}, x509.CertPool{}),
+	))
+}
+
+func requireEqualSSHConfig(t *testing.T, expected *ssh.ClientConfig, actual *ssh.ClientConfig) {
+	require.Empty(t, cmp.Diff(expected, actual,
+		cmpopts.IgnoreFields(ssh.ClientConfig{}, "Auth", "HostKeyCallback"),
+	))
+}
+
 var (
-	certPEM = []byte(`-----BEGIN CERTIFICATE-----
+	tlsCert = []byte(`-----BEGIN CERTIFICATE-----
 MIIDyzCCArOgAwIBAgIQD3MiJ2Au8PicJpCNFbvcETANBgkqhkiG9w0BAQsFADBe
 MRQwEgYDVQQKEwtleGFtcGxlLmNvbTEUMBIGA1UEAxMLZXhhbXBsZS5jb20xMDAu
 BgNVBAUTJzIwNTIxNzE3NzMzMTIxNzQ2ODMyNjA5NjAxODEwODc0NTAzMjg1ODAe
@@ -201,7 +262,7 @@ pr5VAoGBAJBhNjs9wAu+ZoPcMZcjIXT/BAj2tQYiHoRnNpvQjDYbQueUBeI0Ry8d
 90Ns/9SamlBo9j8ETm9g9D3EVir9zF5XvoR13OdN9gabGy1GuubT
 -----END RSA PRIVATE KEY-----`)
 
-	caCertPEM = []byte(`-----BEGIN CERTIFICATE-----
+	tlsCACert = []byte(`-----BEGIN CERTIFICATE-----
 MIIDiTCCAnGgAwIBAgIRAJlp/39yg8U604bjsxgcoC0wDQYJKoZIhvcNAQELBQAw
 XjEUMBIGA1UEChMLZXhhbXBsZS5jb20xFDASBgNVBAMTC2V4YW1wbGUuY29tMTAw
 LgYDVQQFEycyMDM5MjIyNTY2MzcxMDQ0NDc3MzYxNjA0MTk0NjU2MTgzMDA5NzMw
