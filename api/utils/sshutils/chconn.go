@@ -120,7 +120,9 @@ func (c *ChConn) Read(data []byte) (int, error) {
 	if err != nil && err == io.ErrClosedPipe {
 		return n, trace.ConnectionProblem(err, constants.UseOfClosedNetworkConnection)
 	}
-	return n, trace.Wrap(err)
+	// Do not wrap the error to avoid masking the underlying error such as
+	// timeout error which is returned when read deadline is exceeded.
+	return n, err
 }
 
 // SetDeadline sets a connection deadline.
