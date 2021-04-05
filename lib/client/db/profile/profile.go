@@ -46,4 +46,6 @@ type ConnectProfile struct {
 	CertPath string
 	// KeyPath is the client key path.
 	KeyPath string
+	// CertAndKey is the path to a file containing key+cert.
+	CertAndKey string
 }

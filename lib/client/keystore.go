@@ -45,6 +45,7 @@ const (
 	fileExtTLSCert     = "-x509.pem"
 	fileExtCert        = "-cert.pub"
 	fileExtPub         = ".pub"
+	fileExtKeyPlusCert = "-key.pem"
 	sessionKeyDir      = "keys"
 	fileNameKnownHosts = "known_hosts"
 	fileNameTLSCerts   = "certs.pem"
@@ -213,6 +214,14 @@ func (fs *FSLocalKeyStore) AddKey(host, username string, key *Key) error {
 			return trace.Wrap(err)
 		}
 		if err := writeBytes(fname, cert); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// mongodb needs the key and cert concatenated for auth
+		// TODO if this is in the same place as the certs, the code that loads ALL
+		//      the certs blows up cos key+cert is not a pure x509
+		fname = filepath.Join(username+dbDirSuffix, filepath.Clean(db)+fileExtKeyPlusCert)
+		if err := writeBytes(fname, append(key.Priv, cert...)); err != nil {
 			return trace.Wrap(err)
 		}
 	}

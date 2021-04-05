@@ -48,10 +48,12 @@ type Proxy struct {
 func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err error) {
 	tlsConn := tls.Server(clientConn, p.TLSConfig)
 	defer tlsConn.Close()
+	// this is necessary so that we can read the identity from the client
 	err = tlsConn.Handshake()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	ctx, err = p.Middleware.WrapContextWithUser(ctx, tlsConn)
 	if err != nil {
 		return trace.Wrap(err)

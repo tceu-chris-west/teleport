@@ -169,7 +169,7 @@ func (s *ProxyServer) ServeMySQL(listener net.Listener) error {
 	}
 }
 
-// ServeMySQL starts accepting MongoDB client connections.
+// ServeMongoDB starts accepting MongoDB client connections.
 func (s *ProxyServer) ServeMongoDB(listener net.Listener) error {
 	s.log.Debug("Started MongoDB proxy.")
 	defer s.log.Debug("MongoDB proxy exited.")
@@ -204,9 +204,6 @@ func (s *ProxyServer) dispatch(clientConn net.Conn) (common.Proxy, error) {
 		s.log.Debugf("Accepted Postgres connection from %v.", muxConn.RemoteAddr())
 		return s.postgresProxy(), nil
 	// TODO can we mux mongodb connections ????
-	case multiplexer.ProtoTLS:
-		s.log.Debugf("Accepted MongoDB connection from %v.", muxConn.RemoteAddr())
-		return s.mongodbProxy(), nil
 	}
 	return nil, trace.BadParameter("unsupported database protocol %q",
 		muxConn.Protocol())

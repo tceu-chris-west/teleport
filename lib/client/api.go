@@ -410,6 +410,16 @@ func (p *ProfileStatus) DatabaseCertPath(name string) string {
 		fmt.Sprintf("%v%v", name, fileExtTLSCert))
 }
 
+// DatabaseKeyPath returns path to the specified database access key + cert
+// for this profile
+//
+// It's kept in ~/.tsh/keys/<proxy>/<user>-db/<name>-key.pem
+func (p *ProfileStatus) DatabaseKeyPath(name string) string {
+	return filepath.Join(p.Dir, sessionKeyDir, p.Name,
+		fmt.Sprintf("%v%v", p.Username, dbDirSuffix),
+		fmt.Sprintf("%v%v", name, fileExtKeyPlusCert))
+}
+
 // DatabaseServices returns a list of database service names for this profile.
 func (p *ProfileStatus) DatabaseServices() (result []string) {
 	for _, db := range p.Databases {

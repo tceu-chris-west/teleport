@@ -17,18 +17,18 @@ limitations under the License.
 package mongodb
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
-	"io/ioutil"
+	"encoding/binary"
+	"fmt"
+	"io"
 	"net"
+
+	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-
-	"go.mongodb.org/mongo-driver/mongo/description"
-	"go.mongodb.org/mongo-driver/x/mongo/driver"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/topology"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -65,7 +65,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			e.Log.WithError(err).Error("Failed to send error to client.")
 		}
 	}()
-	// TODO something about auth???
+	// get user/db to connect _to_ on remote
 	err = e.handleStartup(sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -82,6 +82,14 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer serverConn.Close()
+
+	e.Log.Debug("Handshaking with db ...")
+	err = serverConn.Handshake()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	e.Log.Debug("Connection open!")
 	// At this point the client should be ready to start sending
 	// messages: this is where the prompt appears on the other side.
@@ -99,8 +107,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	// the client and the server (database).
 	clientErrCh := make(chan error, 1)
 	serverErrCh := make(chan error, 1)
-	go e.receiveFromClient(clientConn, serverConn, clientErrCh, ctx, sessionCtx)
-	go e.receiveFromServer(serverConn, clientConn, serverErrCh, ctx, sessionCtx)
+	go e.receiveFromClient(clientConn, *serverConn, clientErrCh, ctx, sessionCtx)
+	go e.receiveFromServer(*serverConn, clientConn, serverErrCh, ctx, sessionCtx)
 	select {
 	case err := <-clientErrCh:
 		e.Log.WithError(err).Debug("Client done.")
@@ -114,9 +122,14 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 // handleStartup updates the session context with the connection parameters.
 func (e *Engine) handleStartup(sessionCtx *common.Session) error {
-
-	sessionCtx.DatabaseName = "admin"
-	sessionCtx.DatabaseUser = "testuser"
+	// this'll get overwritten by $db in OP_MSG
+	sessionCtx.DatabaseName = "[mongodb]"
+	// take user from labels if set there; otherwise from client
+	if val, ok := sessionCtx.Server.GetAllLabels()["user"]; ok {
+		sessionCtx.DatabaseUser = val
+	} else {
+		sessionCtx.DatabaseUser = sessionCtx.Identity.Username
+	}
 	return nil
 }
 
@@ -144,67 +157,65 @@ func (e *Engine) checkAccess(sessionCtx *common.Session) error {
 
 // connect establishes the connection to the database instance and returns
 // the connection
-func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (driver.Connection, error) {
-	// parse a connection string into meaningful data, including getting
-	// tls setup from teleport's CA
-	connectConfig, err := e.getConnectConfig(ctx, sessionCtx)
+func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*tls.Conn, error) {
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	e.Log.Debug(" ... have connection config")
-	// create a topology that reflects the mongodb cluster we're connecting to
-	top, err := topology.New(connectConfig...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	e.Log.Debug(" ... have topology")
-	err = top.Connect()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer top.Disconnect(ctx)
-	e.Log.Debug(" ... topology connected")
-
-	// find a server in the topology to connect to
-	srv, err := top.SelectServer(ctx, description.WriteSelector())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	e.Log.Debug(" ... server selected")
-
-	// connect to the server
-	conn, err := srv.Connection(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	return conn, nil
+	return tls.Dial("tcp", sessionCtx.Server.GetURI(), tlsConfig)
 }
 
 // receiveFromClient receives messages from the provided backend (which
 // in turn receives them from psql or other client) and relays them to
 // the frontend connected to the database instance.
-func (e *Engine) receiveFromClient(clientConn net.Conn, serverConn driver.Connection, clientErrCh chan<- error, ctx context.Context, sessionCtx *common.Session) {
+//func (e *Engine) receiveFromClient(clientConn net.Conn, serverConn driver.Connection, clientErrCh chan<- error, ctx context.Context, sessionCtx *common.Session) {
+func (e *Engine) receiveFromClient(clientConn net.Conn, serverConn tls.Conn, clientErrCh chan<- error, ctx context.Context, sessionCtx *common.Session) {
 	log := e.Log.WithFields(logrus.Fields{
 		"from":   "client",
 		"client": clientConn.RemoteAddr(),
-		"server": serverConn.Address(),
+		"server": serverConn.RemoteAddr(),
 	})
 	defer log.Debug("Stop receiving from client.")
+
+	c := bufio.NewReader(clientConn)
 	for {
-		// TODO use the wire format to know how much to read
-		message, err := ioutil.ReadAll(clientConn)
+		// use the wire format to understand how much to read
+		mbuf, err := c.Peek(4)
 		if err != nil {
-			log.WithError(err).Errorf("Failed to receive message from client.")
+			log.WithError(err).Errorf("Failed to receive message length from client.")
 			clientErrCh <- err
 			return
 		}
+		mlen := binary.LittleEndian.Uint32(mbuf)
+		message := make([]byte, mlen)
+		rlen, err := io.ReadFull(c, message)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to receive message data from client.")
+			clientErrCh <- err
+			return
+		}
+		if uint32(rlen) != mlen {
+			// TODO this ... can't happen??
+			log.WithError(err).Errorf("Failed to receive whole message from client.")
+			clientErrCh <- err
+			return
+		}
+
 		log.Debugf("Received client data: %#v.", message)
 
-		// TODO USEFUL AUDITING HERE!!!
+		auditMessage, _ := e.parseMessage(message, sessionCtx)
+		if auditMessage != "" {
+			if err := e.Audit.OnQuery(e.Context, *sessionCtx, auditMessage); err != nil {
+				log.WithError(err).Error("Failed to emit audit event.")
+			}
+			// TODO this is nasty stuff -- truncate the message if
+			//      parseMessage() changed it. parseX() shouldn't
+			//      mutate X :(((
+			mlen = binary.LittleEndian.Uint32(message[:4])
+			message = message[:mlen]
+		}
 
-		err = serverConn.WriteWireMessage(ctx, message)
+		_, err = serverConn.Write(message)
 		if err != nil {
 			log.WithError(err).Error("Failed to send message to server.")
 			clientErrCh <- err
@@ -213,28 +224,82 @@ func (e *Engine) receiveFromClient(clientConn net.Conn, serverConn driver.Connec
 	}
 }
 
+func (e *Engine) parseMessage(message []byte, sessionCtx *common.Session) (string, error) {
+	switch int(message[13]) << 8 + int(message[12]) {
+		case 2013: // OP_MSG
+			if message[20] != 0x0 {
+				// TODO handle other section types
+				e.Log.Debugf("Will not audit OP_MSG with section %#v", message[20])
+				return "", nil
+			}
+			m := map[string]interface{}{}
+			err := bson.Unmarshal(message[21:], &m)
+			if err != nil {
+				e.Log.WithError(err).Warn("Failed to parse OP_MSG BSON data")
+				return "", err
+			}
+			if _, ok := m["authenticate"]; ok {
+				// stop the client from overwriting the cert
+				var authData = AuthenticateBson{}
+				_ = bson.Unmarshal(message[21:], &authData)
+				authData.User = fmt.Sprintf("CN=%s", sessionCtx.DatabaseUser)
+				authDataBytes, _ := bson.Marshal(authData)
+				copy(message[21:], authDataBytes)
+				binary.LittleEndian.PutUint32(message, uint32(len(authDataBytes) + 21))
+				e.Log.Debugf("Mangled client message to: %#v.", message)
+			}
+			if db, ok := m["$db"]; ok {
+				sessionCtx.DatabaseName = fmt.Sprintf("%s", db)
+			}
+			return fmt.Sprintf("%#v", m), nil
+		// TODO handle OP_QUERY
+	}
+	return "", nil
+}
+
+type AuthenticateBson struct{
+	Authenticate int     `bson:"authenticate"`
+	Mechanism    string  `bson:"mechanism"`
+	User         string  `bson:"user"`
+	DB           string  `bson:"$db"`
+}
+
 // receiveFromServer receives messages from the provided frontend (which
 // is connected to the database instance) and relays them back to the psql
 // or other client via the provided backend.
-func (e *Engine) receiveFromServer(serverConn driver.Connection, clientConn net.Conn, serverErrCh chan<- error, ctx context.Context, sessionCtx *common.Session) {
+//func (e *Engine) receiveFromServer(serverConn driver.Connection, clientConn net.Conn, serverErrCh chan<- error, ctx context.Context, sessionCtx *common.Session) {
+func (e *Engine) receiveFromServer(serverConn tls.Conn, clientConn net.Conn, serverErrCh chan<- error, ctx context.Context, sessionCtx *common.Session) {
 	log := e.Log.WithFields(logrus.Fields{
 		"from":   "server",
 		"client": clientConn.RemoteAddr(),
-		"server": serverConn.Address(),
+		"server": serverConn.RemoteAddr(),
 	})
 	defer log.Debug("Stop receiving from server.")
+
+	c := bufio.NewReader(&serverConn)
 	for {
-		var message []byte
-		message, err := serverConn.ReadWireMessage(ctx, message)
+		mbuf, err := c.Peek(4)
 		if err != nil {
-			log.WithError(err).Errorf("Failed to receive message from server.")
+			log.WithError(err).Errorf("Failed to receive message length from server.")
 			serverErrCh <- err
 			return
 		}
+		mlen := binary.LittleEndian.Uint32(mbuf)
+		message := make([]byte, mlen)
+		rlen, err := io.ReadFull(c, message)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to receive message data from server.")
+			serverErrCh <- err
+			return
+		}
+		if uint32(rlen) != mlen {
+			// TODO this ... can't happen??
+			log.WithError(err).Errorf("Failed to receive whole message from server.")
+			serverErrCh <- err
+			return
+		}
+
 		log.Debugf("Received server data: %#v.", message)
-
-		// TODO useful auditing
-
 		_, err = clientConn.Write(message)
 		if err != nil {
 			log.WithError(err).Error("Failed to send message to client.")
@@ -242,45 +307,4 @@ func (e *Engine) receiveFromServer(serverConn driver.Connection, clientConn net.
 			return
 		}
 	}
-}
-
-// getConnectConfig returns config that can be used to connect to the
-// database instance.
-func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Session) ([]topology.Option, error) {
-	// The driver requires the config to be built by parsing the connection
-	// string so parse the basic template and then fill in the rest of
-	// parameters such as TLS configuration.
-	cs, err := connstring.ParseAndValidate("mongodb://localhost:27017/?serverSelectionTimeoutMS=500")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// turn off OCSP
-	cs.SSLDisableOCSPEndpointCheck = true
-	cs.SSLDisableOCSPEndpointCheckSet = true
-
-	var opts []topology.Option
-
-	opts = append(opts, topology.WithConnString(func (connstring.ConnString) connstring.ConnString {
-		return cs
-	}))
-
-	// TLS config will use client certificate for an onprem database or
-	// will contain RDS root certificate for RDS/Aurora.
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsOpts := topology.WithTLSConfig(func(*tls.Config) *tls.Config {
-		return tlsConfig
-	})
-
-	whyOpts := topology.WithConnectionOptions(func(o ...topology.ConnectionOption) []topology.ConnectionOption {
-		return append(o, tlsOpts)
-	})
-	whyWhyOpts := topology.WithServerOptions(func(o ...topology.ServerOption) []topology.ServerOption {
-		return append(o, whyOpts)
-	})
-
-	return append(opts, whyWhyOpts), nil
 }

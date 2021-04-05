@@ -17,6 +17,7 @@ limitations under the License.
 package mongodb
 
 import (
+	"fmt"
 	"os/user"
 	"path/filepath"
 	"text/template"
@@ -56,7 +57,9 @@ func (s *ServiceFile) Upsert(profile profile.ConnectProfile) error {
 // Env returns the specified connection profile information as a set of
 // environment variables
 func (s *ServiceFile) Env(serviceName string) (map[string]string, error) {
+	// TODO
 	env := map[string]string{
+		"MONGO_PARAMS": fmt.Sprintf("TODO"),
 	}
 	return env, nil
 }
@@ -75,8 +78,13 @@ const (
 // TODO get this right!
 var Message = template.Must(template.New("").Parse(`
 Connection information for MongoDB database "{{.Name}}" has been saved.
-
 You can now connect to the database using the following command:
 
-  $ mongo {{if not .User}} -u "<user>"{{end}}{{if not .Database}} "<dbname>"{{end}}
+  $ mongo mongodb://{{.Host}}:{{.Port}}/ --tls --tlsCAFile {{.CACertPath}} --tlsCertificateKeyFile {{.CertAndKey}} --authenticationDatabase '$external' --authenticationMechanism MONGODB-X509
+
+... or ...
+
+  $ mongosh "mongodb://{{.Host}}:{{.Port}}/?tls=true&tlsCAFile={{.CACertPath}}&tlsCertificateKeyFile={{.CertAndKey}}&authenticationDatabase=\$external&authenticationMethod=MONGODB-X509"
+
+# might need --tlsAllowInvalidCertificates for verrry long expiry times
 `))

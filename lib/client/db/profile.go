@@ -65,6 +65,7 @@ func Add(tc *client.TeleportClient, db tlsca.RouteToDatabase, clientProfile clie
 		CACertPath: clientProfile.CACertPath(),
 		CertPath:   clientProfile.DatabaseCertPath(db.ServiceName),
 		KeyPath:    clientProfile.KeyPath(),
+		CertAndKey: clientProfile.DatabaseKeyPath(db.ServiceName),
 	}
 	err = profileFile.Upsert(connectProfile)
 	if err != nil {
