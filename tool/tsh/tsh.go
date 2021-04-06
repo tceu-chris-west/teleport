@@ -1217,8 +1217,10 @@ func formatConnectCommand(cluster string, active tlsca.RouteToDatabase) string {
 		}
 		return fmt.Sprintf("mysql --defaults-group-suffix=_%v --user=<user> --database=<database>", service)
 	case defaults.ProtocolMongoDB:
-		// TODO what should this really be?
-		return fmt.Sprintf(`mongo "%v"`, service)
+		// TODO the mongo shell doesn't have a neat .ini file with
+		// profiles we can cross-reference in a terse status like
+		// mysql/pgsql; the real connection string is long and ugly.
+		return "echo $MONGO_PARAMS | xargs -o mongo"
 	}
 	return ""
 }

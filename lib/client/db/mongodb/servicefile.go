@@ -30,8 +30,6 @@ import (
 	"gopkg.in/ini.v1"
 )
 
-// TODO stub all this til we understand if it's relevant
-
 type ServiceFile struct {
 	// iniFile is the underlying ini file.
 	iniFile *ini.File
@@ -141,7 +139,6 @@ const (
 )
 
 // Message is printed after MongoDB service file has been updated.
-// TODO get this right!
 var Message = template.Must(template.New("").Parse(`
 Connection information for MongoDB database "{{.Name}}" has been saved.
 You can now connect to the database using the following command:
