@@ -18,6 +18,8 @@ package mongodb
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"os/user"
 	"path/filepath"
 	"text/template"
@@ -25,11 +27,14 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/profile"
 
 	"github.com/gravitational/trace"
+	"gopkg.in/ini.v1"
 )
 
 // TODO stub all this til we understand if it's relevant
 
 type ServiceFile struct {
+	// iniFile is the underlying ini file.
+	iniFile *ini.File
 	// path is the service file path.
 	path string
 }
@@ -42,36 +47,97 @@ func Load() (*ServiceFile, error) {
 	return LoadFromPath(filepath.Join(user.HomeDir, serviceFile))
 }
 
-// LoadFromPath loads Posrtgres connection service file from the specified path.
+// LoadFromPath loads MongoDB connection service file from the specified path.
 func LoadFromPath(path string) (*ServiceFile, error) {
+	// Loose load will ignore file not found error.
+	iniFile, err := ini.LooseLoad(path)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &ServiceFile{
+		iniFile: iniFile,
 		path:    path,
 	}, nil
 }
 
 // Upsert adds the provided connection profile to the service file and saves it.
 func (s *ServiceFile) Upsert(profile profile.ConnectProfile) error {
-	return nil
+	section := s.iniFile.Section(profile.Name)
+	if section != nil {
+		s.iniFile.DeleteSection(profile.Name)
+	}
+	section, err := s.iniFile.NewSection(profile.Name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	section.NewKey("host", profile.Host)
+	section.NewKey("port", strconv.Itoa(profile.Port))
+	if profile.User != "" {
+		section.NewKey("user", profile.User)
+	}
+	if profile.Database != "" {
+		section.NewKey("dbname", profile.Database)
+	}
+	section.NewKey("sslinsecure", strconv.FormatBool(profile.Insecure))
+	section.NewKey("sslrootcert", profile.CACertPath)
+	section.NewKey("sslcertkey", profile.CertAndKey)
+	ini.PrettyFormat = false // Pretty format breaks stuff
+	return s.iniFile.SaveTo(s.path)
 }
 
 // Env returns the specified connection profile information as a set of
 // environment variables
 func (s *ServiceFile) Env(serviceName string) (map[string]string, error) {
-	// TODO
+	section, err := s.iniFile.GetSection(serviceName)
+	if err != nil {
+		if strings.Contains(err.Error(), "does not exist") {
+			return nil, trace.NotFound("service connection profile %q not found", serviceName)
+		}
+		return nil, trace.Wrap(err)
+	}
+	host, err := section.GetKey("host")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	port, err := section.GetKey("port")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sslRootCert, err := section.GetKey("sslrootcert")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sslCertKey, err := section.GetKey("sslcertkey")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sslInsecureParam := ""
+	sslInsecureArg := ""
+	sslInsecure, err := section.GetKey("sslinsecure")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if val, _ := sslInsecure.Bool(); val {
+		sslInsecureParam = " --tlsAllowInvalidCertificates"
+		sslInsecureArg = "&tlsAllowInvalidCertificates=true"
+	}
+
 	env := map[string]string{
-		"MONGO_PARAMS": fmt.Sprintf("TODO"),
+		"MONGO_PARAMS": fmt.Sprintf(`"mongodb://%s:%s/ --tls --tlsCAFile %s --tlsCertificateKeyFile %s --authenticationDatabase '\$external' --authenticationMechanism MONGODB-X509%s"`, host, port, sslRootCert, sslCertKey, sslInsecureParam),
+		"MONGO_CONN": fmt.Sprintf(`"mongodb://%s:%s/?tls=true&tlsCAFile=%s&tlsCertificateKeyFile=%s&authenticationDatabase=\$external&authenticationMethod=MONGODB-X509%s"`, host, port, sslRootCert, sslCertKey, sslInsecureArg),
 	}
 	return env, nil
 }
 
 // Delete deletes the specified connection profile and saves the service file.
 func (s *ServiceFile) Delete(name string) error {
-	return nil
+	s.iniFile.DeleteSection(name)
+	return s.iniFile.SaveTo(s.path)
 }
 
 const (
-	// serviceFile is the default name of the Postgres service file.
-	serviceFile = ".todo.nonsuch.file.in.mongodb"
+	// serviceFile is the default name of the MongoDB service file.
+	serviceFile = ".tsh/mongodb.conf"
 )
 
 // Message is printed after MongoDB service file has been updated.
@@ -86,5 +152,13 @@ You can now connect to the database using the following command:
 
   $ mongosh "mongodb://{{.Host}}:{{.Port}}/?tls=true&tlsCAFile={{.CACertPath}}&tlsCertificateKeyFile={{.CertAndKey}}&authenticationDatabase=\$external&authenticationMethod=MONGODB-X509"
 
-# might need --tlsAllowInvalidCertificates for verrry long expiry times
+... or more succinctly ...
+
+ $ eval $(tsh db env)  # ... will set $MONGO_PARAMS and $MONGO_CONN
+ $ echo $MONGO_PARAMS | xargs -o mongo  # ... connect using mongo
+ $ mongosh $MONGO_CONN  # .. connect using mongosh 
+
+You might need --tlsAllowInvalidCertificates if the proxy's certificate has a
+very long expiry times. This option will be set automatically when using
+"tsh --insecure db login" and "tsh db env".
 `))
